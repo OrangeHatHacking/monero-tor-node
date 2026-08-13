@@ -274,6 +274,10 @@ max-log-file-size=2147483648
 p2p-bind-ip=0.0.0.0
 p2p-bind-port=18080
 
+# Local only RPC
+rpc-bind-ip=127.0.0.1
+rpc-bind-port=18081
+
 # Restricted RPC on all interfaces (dangerous methods blocked)
 # Also reachable via Tor hidden service
 rpc-restricted-bind-ip=0.0.0.0
@@ -428,7 +432,7 @@ check_monero() {
     echo -e "  Since:   $(systemctl show monerod --property=ActiveEnterTimestamp --value 2>/dev/null)"
 
     local info
-    info=$(curl -s --max-time 5 -X POST http://127.0.0.1:18089/json_rpc \
+    info=$(curl -s --max-time 5 -X POST http://127.0.0.1:18081/json_rpc \
         -d '{"jsonrpc":"2.0","id":"0","method":"get_info"}' \
         -H 'Content-Type: application/json' 2>/dev/null)
 
@@ -442,10 +446,7 @@ check_monero() {
             echo -e "  Synced:  ${YELLOW}${h}/${th}${NC}"
         fi
         echo "  Tx pool: $(echo "${info}" | jq -r '.result.tx_pool_size // "?"')"
-        # restricted RPC hides connection counts, pull from log instead
-        local conns
-        conns=$(sudo tail -200 /var/log/monero/monero.log 2>/dev/null | grep -oP '\d+\(out\)\+\d+\(in\) connections' | tail -1)
-        echo "  Peers:   ${conns:-unknown (check log)}"
+        echo "  Out/In:  $(echo "${info}" | jq -r '.result.outgoing_connections_count // "?"')/$(echo "${info}" | jq -r '.result.incoming_connections_count // "?"')"
         local db; db=$(echo "${info}" | jq -r '.result.database_size // 0')
         [[ "${db}" -gt 0 ]] && echo "  DB:      $(echo "${db}" | awk '{printf "%.1f GiB", $1/1073741824}')"
     else
