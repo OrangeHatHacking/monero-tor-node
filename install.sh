@@ -469,7 +469,7 @@ check_tor() {
 
     [[ -f /var/lib/tor/fingerprint ]] && echo "  FP:      $(cat /var/lib/tor/fingerprint)"
 
-    if journalctl -u tor@default --no-pager -n 200 2>/dev/null | grep -q "ORPort is reachable"; then
+    if sudo journalctl -u tor@default --no-pager 2>/dev/null | grep -q "is reachable from the outside"; then
         echo -e "  ORPort:  ${GREEN}reachable${NC}"
     else
         echo -e "  ORPort:  ${YELLOW}not confirmed (check port forward)${NC}"
