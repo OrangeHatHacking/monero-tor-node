@@ -442,7 +442,10 @@ check_monero() {
             echo -e "  Synced:  ${YELLOW}${h}/${th}${NC}"
         fi
         echo "  Tx pool: $(echo "${info}" | jq -r '.result.tx_pool_size // "?"')"
-        echo "  Out/In:  $(echo "${info}" | jq -r '.result.outgoing_connections_count // "?"')/$(echo "${info}" | jq -r '.result.incoming_connections_count // "?"')"
+        # restricted RPC hides connection counts, pull from log instead
+        local conns
+        conns=$(sudo tail -200 /var/log/monero/monero.log 2>/dev/null | grep -oP '\d+\(out\)\+\d+\(in\) connections' | tail -1)
+        echo "  Peers:   ${conns:-unknown (check log)}"
         local db; db=$(echo "${info}" | jq -r '.result.database_size // 0')
         [[ "${db}" -gt 0 ]] && echo "  DB:      $(echo "${db}" | awk '{printf "%.1f GiB", $1/1073741824}')"
     else
