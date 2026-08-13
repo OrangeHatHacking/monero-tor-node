@@ -23,7 +23,7 @@ DEBIAN_CODENAME="trixie"
 # tor bandwidth defaults: 5 MB/s sustained, 10 MB/s burst
 TOR_BANDWIDTH_RATE="5 MBytes"
 TOR_BANDWIDTH_BURST="10 MBytes"
-TOR_ORPORT="443"
+TOR_ORPORT="9001"
 
 # --- helpers ---
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
@@ -95,7 +95,7 @@ gather_input() {
     fi
 
     echo ""
-    log_info "ORPort: ${TOR_ORPORT} (443 recommended -- least likely to be ISP-blocked)"
+    log_info "ORPort: ${TOR_ORPORT}"
     if confirm "Change?"; then
         read -rp "ORPort: " TOR_ORPORT
     fi
