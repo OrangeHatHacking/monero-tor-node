@@ -5,8 +5,8 @@ Monero full node + Tor middle/guard relay on Debian 13 (Trixie) amd64.
 ## What it sets up
 
 - Monero full unpruned node (restricted RPC on clearnet + Tor)
-- Tor middle/guard relay (non-exit) with bandwidth limits
-- Monero hidden service (.onion for RPC + P2P)
+- Tor middle/guard relay (non-exit) with bandwidth limits (tor@default)
+- Monero hidden service in separate Tor process (tor@monero)
 - Automatic security updates (Debian + Tor Project repos)
 - ufw firewall
 - `node-status` monitoring command
@@ -15,7 +15,7 @@ Monero full node + Tor middle/guard relay on Debian 13 (Trixie) amd64.
 
 - Debian 13 (Trixie) x86_64, root access
 - 4+ GiB RAM, 512+ GiB SSD
-- Port forwarding for Tor ORPort (default 443)
+- Port forwarding for Tor ORPort (default 9001)
 
 ## Install
 
@@ -44,21 +44,23 @@ sudo nyx                 # tor live TUI
 
 ```bash
 systemctl status monerod
-systemctl status tor@default
+systemctl status tor@default       # relay
+systemctl status tor@monero        # hidden service
 tail -f /var/log/monero/monero.log
-journalctl -fu tor@default
+journalctl -fu tor@default         # relay logs
+journalctl -fu tor@monero          # hidden service logs
 ```
 
 ## Wallet connection
 
 - Clearnet: `YOUR_IP:18089`
-- Tor: `cat /var/lib/tor/monerod/hostname` then `<onion>:18089`
+- Tor: `cat /var/lib/tor-instances/monero/monerod/hostname` then `<onion>:18089`
 
 Both use restricted RPC (dangerous methods blocked).
 
 ## Backups
 
-- `/var/lib/tor/monerod/` -- onion keys
+- `/var/lib/tor-instances/monero/monerod/` -- onion keys
 - `/var/lib/tor/keys/` -- relay identity
 
 ## Updating Monero

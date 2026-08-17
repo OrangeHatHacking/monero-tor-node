@@ -20,8 +20,8 @@ MONERO_GPG_KEY_URL="https://raw.githubusercontent.com/monero-project/monero/mast
 MONERO_HASHES_URL="https://www.getmonero.org/downloads/hashes.txt"
 DEBIAN_CODENAME="trixie"
 
-# tor bandwidth defaults: 5 MB/s sustained, 10 MB/s burst
-TOR_BANDWIDTH_RATE="5 MBytes"
+# tor bandwidth defaults
+TOR_BANDWIDTH_RATE="8 MBytes"
 TOR_BANDWIDTH_BURST="10 MBytes"
 TOR_ORPORT="9001"
 
@@ -176,28 +176,19 @@ configure_tor_relay() {
 
     [[ -f /etc/tor/torrc ]] && cp /etc/tor/torrc /etc/tor/torrc.backup.$(date +%s)
 
+    # Relay instance (tor@default) -- relay only, no hidden services
     cat > /etc/tor/torrc << EOF
-# Relay identity
 Nickname    ${TOR_NICKNAME}
 ContactInfo ${TOR_CONTACT}
 
-# Middle/guard relay, not an exit
-ORPort      ${TOR_ORPORT}
+ORPort      ${TOR_ORPORT} IPv4Only
 ExitRelay   0
+SocksPort   0
 
-# SOCKS proxy on localhost for monerod tx-proxy
-SocksPort   127.0.0.1:9050
-
-# Bandwidth
 BandwidthRate  ${TOR_BANDWIDTH_RATE}
 BandwidthBurst ${TOR_BANDWIDTH_BURST}
 
-# Monero hidden service (RPC + P2P on same .onion)
-HiddenServiceDir /var/lib/tor/monerod
-HiddenServicePort 18089 127.0.0.1:18089
-HiddenServicePort 18084 127.0.0.1:18084
-
-# Control port for nyx (cookie auth, localhost only)
+# nyx
 ControlPort 127.0.0.1:9051
 CookieAuthentication 1
 
@@ -205,7 +196,22 @@ Log notice syslog
 DataDirectory /var/lib/tor
 EOF
 
-    log_ok "Tor configured (middle/guard, ORPort ${TOR_ORPORT})"
+    # Monero instance (tor@monero) -- hidden service + SOCKS only, no relay
+    log_info "Creating tor@monero instance for hidden service..."
+    tor-instance-create monero
+
+    cat > /etc/tor/instances/monero/torrc << 'EOF'
+SocksPort   127.0.0.1:9050
+
+HiddenServiceDir /var/lib/tor-instances/monero/monerod
+HiddenServicePort 18089 127.0.0.1:18089
+HiddenServicePort 18084 127.0.0.1:18084
+
+Log notice syslog
+EOF
+
+    log_ok "Tor relay: tor@default (ORPort ${TOR_ORPORT})"
+    log_ok "Tor hidden service: tor@monero (separate process)"
 }
 
 # --- 5. install monero ---
@@ -294,8 +300,8 @@ tx-proxy=tor,127.0.0.1:9050,12,disable_noise
 
 max-txpool-weight=2684354560
 
-out-peers=12
-in-peers=48
+out-peers=8
+in-peers=32
 limit-rate-up=1048576
 limit-rate-down=1048576
 
@@ -315,7 +321,7 @@ create_systemd_services() {
     cat > /etc/systemd/system/monerod.service << 'EOF'
 [Unit]
 Description=Monero Daemon
-After=network-online.target tor@default.service
+After=network-online.target tor@monero.service
 Wants=network-online.target
 
 [Service]
@@ -340,20 +346,25 @@ EOF
 start_services() {
     log_info "=== Step 8: Starting services ==="
 
+    # start relay
     systemctl enable tor@default
     systemctl start tor@default
+
+    # start monero tor instance
+    systemctl enable tor@monero
+    systemctl start tor@monero
 
     # wait for hidden service hostname
     log_info "Waiting for Tor hidden service..."
     local attempts=0
-    while [[ ! -f /var/lib/tor/monerod/hostname ]] && [[ ${attempts} -lt 30 ]]; do
+    while [[ ! -f /var/lib/tor-instances/monero/monerod/hostname ]] && [[ ${attempts} -lt 30 ]]; do
         sleep 2
         attempts=$((attempts + 1))
     done
 
-    if [[ -f /var/lib/tor/monerod/hostname ]]; then
+    if [[ -f /var/lib/tor-instances/monero/monerod/hostname ]]; then
         local onion_addr
-        onion_addr=$(cat /var/lib/tor/monerod/hostname)
+        onion_addr=$(cat /var/lib/tor-instances/monero/monerod/hostname)
         log_ok "Onion: ${onion_addr}"
 
         # inject into monerod config
@@ -479,8 +490,8 @@ check_tor() {
         echo -e "  ORPort:  ${YELLOW}not confirmed (check port forward)${NC}"
     fi
 
-    if [[ -f /var/lib/tor/monerod/hostname ]]; then
-        local o; o=$(cat /var/lib/tor/monerod/hostname)
+    if [[ -f /var/lib/tor-instances/monero/monerod/hostname ]]; then
+        local o; o=$(cat /var/lib/tor-instances/monero/monerod/hostname)
         echo "  Onion:   ${o}"
         echo "           :18089 (RPC)  :18084 (P2P)"
     fi
@@ -528,7 +539,8 @@ print_summary() {
     echo ""
     echo -e "${GREEN}======== INSTALL COMPLETE ========${NC}"
     echo ""
-    echo "  systemctl status tor@default"
+    echo "  systemctl status tor@default   # relay"
+    echo "  systemctl status tor@monero    # hidden service"
     echo "  systemctl status monerod"
     echo ""
     echo "  node-status              # quick overview"
@@ -536,13 +548,13 @@ print_summary() {
     echo "  tail -f /var/log/monero/monero.log"
     echo ""
     echo "  Wallet (clearnet): YOUR_IP:18089"
-    if [[ -f /var/lib/tor/monerod/hostname ]]; then
-        echo "  Wallet (tor):      $(cat /var/lib/tor/monerod/hostname):18089"
+    if [[ -f /var/lib/tor-instances/monero/monerod/hostname ]]; then
+        echo "  Wallet (tor):      $(cat /var/lib/tor-instances/monero/monerod/hostname):18089"
     fi
     echo ""
     echo "  Backups:"
-    echo "    /var/lib/tor/monerod/  # onion keys"
-    echo "    /var/lib/tor/keys/     # relay identity"
+    echo "    /var/lib/tor-instances/monero/monerod/  # onion keys"
+    echo "    /var/lib/tor/keys/                     # relay identity"
     echo ""
     echo "  Port-forward ${TOR_ORPORT}/tcp on your router."
     echo "  Relay appears on metrics.torproject.org/rs.html after ~3 hours."
