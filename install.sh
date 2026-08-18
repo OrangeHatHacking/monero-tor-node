@@ -465,7 +465,7 @@ check_monero() {
     fi
     if [[ -f /var/lib/tor-instances/monero/monerod/hostname ]]; then
         local o; o=$(cat /var/lib/tor-instances/monero/monerod/hostname)
-        echo "  Onion:   ${o}:18089"
+        echo "  RPC:     ${o}:18089"
     fi
     echo ""
     echo "  See also: monerod --config-file /etc/monero/monerod.conf status"
@@ -499,7 +499,7 @@ check_tor() {
     echo ""
 
     divider
-    echo -e "${CYAN} TOR HIDDEN SERVICE${NC}"
+    echo -e "${CYAN} MONERO ONION (tor@monero)${NC}"
     divider
 
     if ! systemctl is-active --quiet tor@monero; then
