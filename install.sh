@@ -463,6 +463,10 @@ check_monero() {
     else
         echo -e "  RPC:     ${YELLOW}not responding${NC}"
     fi
+    if [[ -f /var/lib/tor-instances/monero/monerod/hostname ]]; then
+        local o; o=$(cat /var/lib/tor-instances/monero/monerod/hostname)
+        echo "  Onion:   ${o}:18089"
+    fi
     echo ""
     echo "  See also: monerod --config-file /etc/monero/monerod.conf status"
     echo "            tail -f /var/log/monero/monero.log"
@@ -489,6 +493,22 @@ check_tor() {
     else
         echo -e "  ORPort:  ${YELLOW}not confirmed (check port forward)${NC}"
     fi
+    echo ""
+    echo "  See also: sudo nyx"
+    echo "            journalctl -fu tor@default"
+    echo ""
+
+    divider
+    echo -e "${CYAN} TOR HIDDEN SERVICE${NC}"
+    divider
+
+    if ! systemctl is-active --quiet tor@monero; then
+        echo -e "  Service: ${RED}STOPPED${NC}"
+        journalctl -u tor@monero --no-pager -n 5 2>/dev/null
+        return
+    fi
+    echo -e "  Service: ${GREEN}RUNNING${NC}"
+    echo -e "  Since:   $(systemctl show tor@monero --property=ActiveEnterTimestamp --value 2>/dev/null)"
 
     if [[ -f /var/lib/tor-instances/monero/monerod/hostname ]]; then
         local o; o=$(cat /var/lib/tor-instances/monero/monerod/hostname)
@@ -496,8 +516,7 @@ check_tor() {
         echo "           :18089 (RPC)  :18084 (P2P)"
     fi
     echo ""
-    echo "  See also: sudo nyx"
-    echo "            journalctl -fu tor@default"
+    echo "  See also: journalctl -fu tor@monero"
     echo ""
 }
 
