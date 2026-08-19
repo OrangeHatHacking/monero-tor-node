@@ -81,11 +81,7 @@ gather_input() {
         log_warn "Invalid. 1-19 alphanumeric characters."
     done
 
-    while true; do
-        read -rp "Contact email (published on relay): " TOR_CONTACT
-        [[ -n "${TOR_CONTACT}" ]] && break
-        log_warn "Required by Tor Project."
-    done
+    read -rp "Contact email (optional, published on relay): " TOR_CONTACT
 
     echo ""
     log_info "Bandwidth: ${TOR_BANDWIDTH_RATE} rate / ${TOR_BANDWIDTH_BURST} burst"
@@ -103,7 +99,7 @@ gather_input() {
     echo ""
     log_info "Summary:"
     log_info "  Nickname:  ${TOR_NICKNAME}"
-    log_info "  Contact:   ${TOR_CONTACT}"
+    log_info "  Contact:   ${TOR_CONTACT:-none}"
     log_info "  ORPort:    ${TOR_ORPORT}"
     log_info "  Bandwidth: ${TOR_BANDWIDTH_RATE} / ${TOR_BANDWIDTH_BURST}"
     log_info "  Monero:    Full unpruned node, restricted RPC"
@@ -179,7 +175,7 @@ configure_tor_relay() {
     # Relay instance (tor@default) -- relay only, no hidden services
     cat > /etc/tor/torrc << EOF
 Nickname    ${TOR_NICKNAME}
-ContactInfo ${TOR_CONTACT}
+$( [[ -n "${TOR_CONTACT}" ]] && echo "ContactInfo ${TOR_CONTACT}" )
 
 ORPort      ${TOR_ORPORT} IPv4Only
 ExitRelay   0
